@@ -1,0 +1,294 @@
+import { useState, useEffect, useCallback } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Grid from '@mui/material/Grid';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Stack from '@mui/material/Stack';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Chip from '@mui/material/Chip';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import { isStudentRole } from '../lib/auth';
+import { supabase, type Profile, type PointLog, type AcademicWeek, type Team, type DormRoom } from '../lib/supabase';
+import StudentDetailDialog from '../components/StudentDetailDialog';
+
+interface StudentScore {
+  profile: Profile;
+  totalPoints: number;
+  deductionCount: number;
+}
+
+export default function DashboardPage() {
+  const [students, setStudents] = useState<Profile[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [dormRooms, setDormRooms] = useState<DormRoom[]>([]);
+  const [, setWeeks] = useState<AcademicWeek[]>([]);
+  const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
+  const [currentWeek, setCurrentWeek] = useState<AcademicWeek | null>(null);
+  const [tabValue, setTabValue] = useState(0);
+  const [detailStudent, setDetailStudent] = useState<Profile | null>(null);
+
+  const loadData = useCallback(async () => {
+    const [studentsRes, teamsRes, dormRes, weeksRes] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('teams').select('*').order('id'),
+      supabase.from('dorm_rooms').select('*').order('room_number'),
+      supabase.from('academic_weeks').select('*').order('week_number'),
+    ]);
+
+    // GVCN (giáo viên chủ nhiệm) is a teacher account, not a student — exclude
+    // it from the roster used for rankings.
+    if (studentsRes.data) setStudents((studentsRes.data as Profile[]).filter(isStudentRole));
+    if (teamsRes.data) setTeams(teamsRes.data as Team[]);
+    if (dormRes.data) setDormRooms(dormRes.data as DormRoom[]);
+    if (weeksRes.data) {
+      setWeeks(weeksRes.data as AcademicWeek[]);
+      const open = (weeksRes.data as AcademicWeek[]).find((w) => !w.is_closed);
+      setCurrentWeek(open || (weeksRes.data as AcademicWeek[])[0] || null);
+    }
+  }, []);
+
+  const loadPointLogs = useCallback(async () => {
+    if (!currentWeek) return;
+    const { data } = await supabase
+      .from('point_logs')
+      .select('*, student:profiles!point_logs_student_id_fkey(*), recorder:profiles!point_logs_recorder_id_fkey(full_name), rule:rules(*)')
+      .eq('week_id', currentWeek.id)
+      .order('created_at', { ascending: false });
+    if (data) setPointLogs(data as unknown as PointLog[]);
+  }, [currentWeek]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadPointLogs(); }, [loadPointLogs]);
+
+  const computeScores = (filterFn?: (p: Profile) => boolean): StudentScore[] => {
+    const filtered = filterFn ? students.filter(filterFn) : students;
+    return filtered.map((s) => {
+      const logs = pointLogs.filter((l) => l.student_id === s.id);
+      const total = logs.reduce((sum, l) => sum + (l.type === 'tru' ? -Math.abs(l.points) : l.points), 0);
+      const deductionCount = logs.filter((l) => l.type === 'tru').length;
+      return { profile: s, totalPoints: 100 + total, deductionCount };
+    }).sort((a, b) => b.totalPoints - a.totalPoints);
+  };
+
+  const allScores = computeScores();
+  const teamScores = teams.map((team) => ({ team, scores: computeScores((p) => p.team_id === team.id) }));
+  const dormScores = dormRooms.map((room) => ({ room, scores: computeScores((p) => p.dorm_room_id === room.id) }));
+
+  const supportStudents = [...allScores].sort((a, b) => a.totalPoints - b.totalPoints).filter((s) => s.deductionCount > 0).slice(0, 10);
+
+  const classAvg = allScores.length > 0 ? (allScores.reduce((sum, s) => sum + s.totalPoints, 0) / allScores.length).toFixed(1) : '0';
+  const totalViolations = pointLogs.filter((l) => l.type === 'tru').length;
+
+  const kpiCards = [
+    { label: 'Điểm TB lớp', value: classAvg, icon: <TrendingUpIcon />, color: 'primary.main', bgColor: '#EFF6FF' },
+    { label: 'Lượt vi phạm', value: totalViolations, icon: <TrendingDownIcon />, color: 'error.main', bgColor: '#FEF2F2' },
+    { label: 'Học sinh cần hỗ trợ', value: supportStudents.length, icon: <WarningAmberIcon />, color: 'warning.main', bgColor: '#FFFBEB' },
+    { label: 'Tuần hiện tại', value: currentWeek ? `Tuần ${currentWeek.week_number}` : '-', icon: <AssessmentIcon />, color: 'success.main', bgColor: '#F0FDF4' },
+  ];
+
+  const tabFilters: { label: string; scores: StudentScore[] }[] = [
+    { label: 'Tất cả', scores: allScores },
+    ...teamScores.map((t) => ({ label: t.team.name, scores: t.scores })),
+    ...dormScores.map((d) => ({ label: d.room.room_number, scores: d.scores })),
+  ];
+
+  const currentTab = tabFilters[tabValue] || tabFilters[0];
+
+  const getPointColor = (score: number) => {
+    if (score >= 100) return 'success';
+    if (score >= 85) return 'warning';
+    return 'error';
+  };
+
+  return (
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="h5" fontWeight={700}>
+          Tổng quan
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {currentWeek ? `Tuần ${currentWeek.week_number} (${currentWeek.start_date} - ${currentWeek.end_date})` : 'Chưa có tuần học'}
+        </Typography>
+      </Box>
+
+      {/* KPI Cards */}
+      <Grid container spacing={2}>
+        {kpiCards.map((kpi) => (
+          <Grid key={kpi.label} size={{ xs: 6, md: 3 }}>
+            <Card>
+              <CardContent sx={{ p: 2.5 }}>
+                <Stack direction="row" alignItems="center" spacing={2}>
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 2,
+                      bgcolor: kpi.bgColor,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: kpi.color,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {kpi.icon}
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                      {kpi.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {kpi.label}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Competition Table */}
+      <Card>
+        <CardContent sx={{ p: 0 }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2, pt: 1 }}>
+            <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto">
+              {tabFilters.map((tab, i) => (
+                <Tab key={i} label={tab.label} sx={{ textTransform: 'none', fontSize: '0.85rem' }} />
+              ))}
+            </Tabs>
+          </Box>
+          <Box sx={{ px: 2, pt: 1.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Nhấp vào một học sinh để xem chi tiết lỗi &amp; điểm cộng
+            </Typography>
+          </Box>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'background.default' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>Hạng</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Học sinh</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Mã HS</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Điểm thi đua</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Lượt vi phạm</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {currentTab.scores.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                      Chưa có dữ liệu
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentTab.scores.map((s, i) => (
+                    <TableRow
+                      key={s.profile.id}
+                      hover
+                      onClick={() => setDetailStudent(s.profile)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={i + 1}
+                          color={i < 3 ? 'primary' : 'default'}
+                          variant={i < 3 ? 'filled' : 'outlined'}
+                          sx={{ minWidth: 28 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={500}>
+                          {s.profile.full_name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {s.profile.student_code}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={s.totalPoints}
+                          color={getPointColor(s.totalPoints) as 'success' | 'warning' | 'error'}
+                          sx={{ fontWeight: 700, minWidth: 48 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color={s.deductionCount > 0 ? 'error.main' : 'text.secondary'}>
+                          {s.deductionCount}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+
+      {/* Support Table */}
+      <Card>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <WarningAmberIcon color="warning" />
+            <Typography variant="h6" fontWeight={600}>
+              Học sinh cần hỗ trợ
+            </Typography>
+          </Stack>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'background.default' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>Học sinh</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Điểm</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Vi phạm</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {supportStudents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                      Không có học sinh cần hỗ trợ
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  supportStudents.map((s) => (
+                    <TableRow
+                      key={s.profile.id}
+                      hover
+                      onClick={() => setDetailStudent(s.profile)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell>{s.profile.full_name}</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={s.totalPoints} color="error" sx={{ fontWeight: 700, minWidth: 40 }} />
+                      </TableCell>
+                      <TableCell>{s.deductionCount}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+
+      <StudentDetailDialog student={detailStudent} onClose={() => setDetailStudent(null)} />
+    </Stack>
+  );
+}
