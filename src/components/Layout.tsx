@@ -152,16 +152,27 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
           borderColor: 'divider',
         }}
       >
-        <Toolbar sx={{ px: { xs: 1.5, sm: 2 } }}>
+        <Toolbar sx={{ px: { xs: 1, sm: 2 }, minHeight: { xs: 52, sm: 64 } }}>
           <IconButton
             edge="start"
             onClick={() => setMobileOpen(!mobileOpen)}
-            sx={{ mr: 1, display: { md: 'none' } }}
+            sx={{ mr: 0.5, display: { md: 'none' } }}
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ flexGrow: 1 }} />
-          <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.75, flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 28, height: 28, borderRadius: 1.5, bgcolor: 'primary.main',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}
+            >
+              <SchoolIcon sx={{ color: 'white', fontSize: 16 }} />
+            </Box>
+            <Typography variant="subtitle2" fontWeight={700} noWrap>11I</Typography>
+          </Box>
+          <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'block' } }} />
+          <Stack direction="row" alignItems="center" spacing={1}>
             <Tooltip title={mode === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}>
               <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary' }}>
                 {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
@@ -176,7 +187,7 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
               </Typography>
             </Box>
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ p: 0.5 }}>
-              <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: '0.85rem', fontWeight: 700 }}>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.8rem', fontWeight: 700 }}>
                 {profile?.full_name?.charAt(0) || '?'}
               </Avatar>
             </IconButton>
@@ -232,7 +243,7 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
         }}
       >
         <Toolbar />
-        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, pb: { xs: 9, md: 3 } }}>
+        <Box sx={{ p: { xs: 1.25, sm: 2, md: 3 }, pb: { xs: 10, md: 3 } }}>
           {children}
         </Box>
       </Box>
@@ -257,13 +268,14 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
             showLabels
             value={bottomNavItems.findIndex((i) => i.key === currentPage)}
             onChange={(_, newValue) => handleNav(bottomNavItems[newValue].key)}
+            sx={{ height: 64 }}
           >
             {bottomNavItems.map((item) => (
               <BottomNavigationAction
                 key={item.key}
                 label={item.label.split(' ')[0]}
                 icon={item.icon}
-                sx={{ minWidth: 0, px: 0.5, fontSize: '0.65rem' }}
+                sx={{ minWidth: 'auto', px: 0.5, fontSize: '0.65rem', paddingTop: 2 }}
               />
             ))}
           </BottomNavigation>

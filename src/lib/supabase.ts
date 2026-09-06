@@ -70,6 +70,8 @@ export type ReportStatus = 'submitted' | 'reviewed';
 
 export type RequestType = 've_nha' | 'nghi_hoc' | 'de_xuat' | 'nghi_quyet' | 'khac';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
+export type DutyArea = 'lop_hoc' | 'ktx';
+export type DutyStatus = 'chua_truc' | 'da_truc' | 'vang_truc';
 
 export interface Profile {
   id: string;
@@ -189,6 +191,20 @@ export interface WeeklyReport {
   week?: AcademicWeek;
 }
 
+export interface DutySchedule {
+  id: number;
+  duty_date: string;
+  area: DutyArea;
+  team_id: number | null;
+  dorm_room_id: number | null;
+  description: string | null;
+  status: DutyStatus;
+  created_by: string | null;
+  created_at: string;
+  team?: Team;
+  dorm_room?: DormRoom;
+}
+
 export interface RequestAttachment {
   id: string;
   request_id: string;
@@ -256,4 +272,15 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   lao_dong: 'Lao động',
   ktx_phong: 'Vệ sinh KTX phòng',
   to_truong: 'Tổ trưởng',
+};
+
+export const DUTY_AREA_LABELS: Record<DutyArea, string> = {
+  lop_hoc: 'Lớp học',
+  ktx: 'KTX',
+};
+
+export const DUTY_STATUS_LABELS: Record<DutyStatus, string> = {
+  chua_truc: 'Chưa trực',
+  da_truc: 'Đã trực',
+  vang_truc: 'Vắng trực',
 };

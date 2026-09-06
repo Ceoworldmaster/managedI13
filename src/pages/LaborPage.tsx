@@ -162,7 +162,7 @@ export default function LaborPage() {
 
       {canManage && (
         <Card>
-          <CardContent sx={{ p: 3 }}>
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
               <EngineeringIcon color="primary" />
               <Typography variant="h6" fontWeight={600}>Thêm đánh giá</Typography>

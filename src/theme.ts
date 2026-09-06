@@ -78,7 +78,7 @@ export function getTheme(mode: PaletteMode) {
             '.mobile-card-table tbody': { display: 'block' },
             '.mobile-card-table tbody tr': {
               display: 'block',
-              padding: '10px 12px',
+              padding: '12px 14px',
               marginBottom: 10,
               borderRadius: 12,
               border: `1px solid ${mode === 'dark' ? '#22304A' : '#E2E8F0'}`,
@@ -92,11 +92,12 @@ export function getTheme(mode: PaletteMode) {
               gap: 12,
               textAlign: 'right',
               border: 'none',
-              padding: '6px 0',
+              padding: '7px 0',
+              minHeight: 32,
             },
             '.mobile-card-table tbody td[data-label]::before': {
               content: 'attr(data-label)',
-              fontSize: '0.72rem',
+              fontSize: '0.73rem',
               fontWeight: 600,
               textAlign: 'left',
               color: mode === 'dark' ? '#94A3B8' : '#64748B',

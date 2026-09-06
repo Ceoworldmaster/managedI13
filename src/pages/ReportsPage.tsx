@@ -28,6 +28,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useAuth, canSubmitReports, hasRole } from '../lib/auth';
 import { supabase, type AcademicWeek, type WeeklyReport, type ReportType, type Profile, REPORT_TYPE_LABELS } from '../lib/supabase';
+import WeekSelector from '../components/WeekSelector';
 
 const REPORT_TYPES: ReportType[] = ['hoc_tap', 'ne_nep', 'lao_dong', 'ktx_phong', 'to_truong'];
 
@@ -36,6 +37,7 @@ export default function ReportsPage() {
   const isGvcn = hasRole(profile, 'gvcn');
   const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
   const [selectedWeek, setSelectedWeek] = useState('');
+  const [selectedWeekIdForSelector, setSelectedWeekIdForSelector] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<ReportType>('hoc_tap');
   const [notes, setNotes] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -48,9 +50,12 @@ export default function ReportsPage() {
     (async () => {
       const { data: weeksData } = await supabase.from('academic_weeks').select('*').order('week_number');
       if (weeksData) {
-        setWeeks(weeksData as AcademicWeek[]);
-        const open = (weeksData as AcademicWeek[]).find((w) => !w.is_closed);
-        setSelectedWeek(String((open || weeksData[0])?.id || ''));
+        const weekList = weeksData as AcademicWeek[];
+        setWeeks(weekList);
+        const open = weekList.find((w) => !w.is_closed);
+        const initial = open || weekList[0];
+        setSelectedWeek(String(initial?.id || ''));
+        setSelectedWeekIdForSelector(initial?.id ?? null);
       }
       if (isGvcn) {
         const { data: profilesData } = await supabase.from('profiles').select('*').order('full_name');
@@ -141,19 +146,16 @@ export default function ReportsPage() {
           <Typography variant="body2" color="text.secondary">Tổng hợp tiến độ nộp báo cáo của ban cán sự</Typography>
         </Box>
 
+        {weeks.length > 0 && selectedWeekIdForSelector && (
+          <WeekSelector
+            weeks={weeks}
+            selectedWeekId={selectedWeekIdForSelector}
+            onChange={(id) => { setSelectedWeekIdForSelector(id); setSelectedWeek(String(id)); }}
+          />
+        )}
+
         <Card>
           <CardContent>
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>Tuần học</InputLabel>
-                <Select value={selectedWeek} label="Tuần học" onChange={(e) => setSelectedWeek(e.target.value)}>
-                  {weeks.map((w) => (
-                    <MenuItem key={w.id} value={String(w.id)}>Tuần {w.week_number}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-
             <TableContainer sx={{ overflowX: 'auto' }}>
               <Table size="small" sx={{ minWidth: 640 }}>
                 <TableHead>
@@ -241,6 +243,14 @@ export default function ReportsPage() {
         <Typography variant="h5" fontWeight={700}>Nộp báo cáo Excel</Typography>
         <Typography variant="body2" color="text.secondary">Tải lên file báo cáo hàng tuần (.xlsx, .xls)</Typography>
       </Box>
+
+      {weeks.length > 0 && selectedWeekIdForSelector && (
+        <WeekSelector
+          weeks={weeks}
+          selectedWeekId={selectedWeekIdForSelector}
+          onChange={(id) => { setSelectedWeekIdForSelector(id); setSelectedWeek(String(id)); }}
+        />
+      )}
 
       <Card>
         <CardContent sx={{ p: 3 }}>

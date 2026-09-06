@@ -22,11 +22,16 @@ import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
-import { supabase, type Profile, type PointLog, CATEGORY_LABELS } from '../lib/supabase';
+import { supabase, type Profile, type PointLog, type AcademicWeek, CATEGORY_LABELS } from '../lib/supabase';
+import WeekSelector from './WeekSelector';
 
 interface StudentDetailDialogProps {
   student: Profile | null;
   onClose: () => void;
+  /** All academic weeks, used to populate the in-dialog week selector. */
+  weeks: AcademicWeek[];
+  /** Week to show by default when the dialog opens (e.g. the week selected on the Dashboard). */
+  initialWeekId: number | null;
 }
 
 function LogSection({
@@ -107,30 +112,47 @@ function LogSection({
   );
 }
 
-export default function StudentDetailDialog({ student, onClose }: StudentDetailDialogProps) {
+export default function StudentDetailDialog({ student, onClose, weeks, initialWeekId }: StudentDetailDialogProps) {
   const [logs, setLogs] = useState<PointLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const [weekId, setWeekId] = useState<number | null>(initialWeekId);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const loadLogs = useCallback(async (studentId: string) => {
+  const loadLogs = useCallback(async (studentId: string, forWeekId: number | null) => {
+    if (!forWeekId) {
+      setLogs([]);
+      return;
+    }
     setLoading(true);
     const { data } = await supabase
       .from('point_logs')
       .select('*, rule:rules(*)')
       .eq('student_id', studentId)
+      .eq('week_id', forWeekId)
       .order('created_at', { ascending: false });
     setLogs((data as unknown as PointLog[]) || []);
     setLoading(false);
   }, []);
 
+  // Reset to the week that was selected on the Dashboard whenever a new
+  // student is opened, then (re)load that week's logs.
   useEffect(() => {
     if (student) {
-      loadLogs(student.id);
+      setWeekId(initialWeekId);
     } else {
       setLogs([]);
     }
-  }, [student, loadLogs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student]);
+
+  useEffect(() => {
+    if (student) {
+      loadLogs(student.id, weekId);
+    }
+  }, [student, weekId, loadLogs]);
+
+  const currentWeek = weeks.find((w) => w.id === weekId) || null;
 
   const violations = logs.filter((l) => l.type === 'tru');
   const merits = logs.filter((l) => l.type === 'cong');
@@ -156,6 +178,11 @@ export default function StudentDetailDialog({ student, onClose }: StudentDetailD
             </IconButton>
           </DialogTitle>
           <DialogContent dividers>
+            {weeks.length > 0 && weekId && (
+              <Box sx={{ mb: 2 }}>
+                <WeekSelector weeks={weeks} selectedWeekId={weekId} onChange={setWeekId} showJumpToCurrent={false} />
+              </Box>
+            )}
             {loading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress size={28} />
@@ -163,7 +190,11 @@ export default function StudentDetailDialog({ student, onClose }: StudentDetailD
             ) : (
               <Stack spacing={3}>
                 <Chip
-                  label={`Điểm thi đua hiện tại: ${netScore}`}
+                  label={
+                    currentWeek
+                      ? `Điểm thi đua tuần ${currentWeek.week_number}: ${netScore}`
+                      : `Điểm thi đua: ${netScore}`
+                  }
                   color={netScore >= 100 ? 'success' : netScore >= 85 ? 'warning' : 'error'}
                   sx={{ fontWeight: 700, alignSelf: 'flex-start' }}
                 />
