@@ -25,7 +25,9 @@ import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import { useAuth, canRecordPoints, isStudentRole } from '../lib/auth';
+import { useWeek } from '../lib/weekContext';
 import { supabase, type Profile, type LaborEvaluation } from '../lib/supabase';
+import WeekSelector from '../components/WeekSelector';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -69,6 +71,7 @@ async function syncPointLog(
 export default function LaborPage() {
   const { profile } = useAuth();
   const canManage = canRecordPoints(profile);
+  const { weeks, selectedWeekId, selectedWeek, setSelectedWeekId } = useWeek();
 
   const [students, setStudents] = useState<Profile[]>([]);
   const [toast, setToast] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
@@ -88,21 +91,37 @@ export default function LaborPage() {
     if (data) setStudents((data as Profile[]).filter(isStudentRole));
   }, []);
 
+  // Evaluations don't have their own week_id column, so we scope the history
+  // to the globally selected week using its date range instead.
   const loadEvaluations = useCallback(async () => {
+    if (!selectedWeek) {
+      setEvaluations([]);
+      return;
+    }
     const { data } = await supabase
       .from('labor_evaluations')
       .select('*, student:profiles!labor_evaluations_student_id_fkey(*), evaluator:profiles!labor_evaluations_evaluator_id_fkey(full_name)')
-      .order('evaluation_date', { ascending: false })
-      .limit(30);
+      .gte('evaluation_date', selectedWeek.start_date)
+      .lte('evaluation_date', selectedWeek.end_date)
+      .order('evaluation_date', { ascending: false });
     if (data) setEvaluations(data as unknown as LaborEvaluation[]);
-  }, []);
+  }, [selectedWeek]);
 
   useEffect(() => { loadStudents(); }, [loadStudents]);
   useEffect(() => { loadEvaluations(); }, [loadEvaluations]);
 
+  // Keep the evaluation-date field inside the selected week's range so a new
+  // evaluation actually shows up in that week's history.
+  useEffect(() => {
+    if (!selectedWeek) return;
+    const today = todayStr();
+    const inRange = today >= selectedWeek.start_date && today <= selectedWeek.end_date;
+    setEvalDate(inRange ? today : selectedWeek.start_date);
+  }, [selectedWeek]);
+
   const resetEvalForm = () => {
     setEvalStudent('');
-    setEvalDate(todayStr());
+    setEvalDate(selectedWeek && todayStr() >= selectedWeek.start_date && todayStr() <= selectedWeek.end_date ? todayStr() : selectedWeek?.start_date || todayStr());
     setEvalScore(8);
     setEvalOnTime(true);
     setEvalPoints('0');
@@ -114,22 +133,11 @@ export default function LaborPage() {
     setSavingEval(true);
 
     const pointsNum = Number(evalPoints) || 0;
-    let weekId: number | null = null;
-    if (pointsNum !== 0) {
-      const { data: weekData } = await supabase
-        .from('academic_weeks')
-        .select('id')
-        .eq('is_closed', false)
-        .order('week_number')
-        .limit(1)
-        .maybeSingle();
-      weekId = weekData?.id ?? null;
-      if (!weekId) {
-        setToast({ open: true, message: 'Không có tuần học đang mở, điểm thi đua sẽ không được ghi', severity: 'error' });
-      }
+    if (pointsNum !== 0 && !selectedWeekId) {
+      setToast({ open: true, message: 'Chưa chọn tuần học, điểm thi đua sẽ không được ghi', severity: 'error' });
     }
 
-    const pointLogId = await syncPointLog(null, pointsNum, evalNotes || 'Đánh giá lao động', evalStudent, weekId, profile.id);
+    const pointLogId = await syncPointLog(null, pointsNum, evalNotes || 'Đánh giá lao động', evalStudent, selectedWeekId, profile.id);
 
     const { error } = await supabase.from('labor_evaluations').insert({
       duty_schedule_id: null,
@@ -159,6 +167,10 @@ export default function LaborPage() {
         <Typography variant="h5" fontWeight={700}>Đánh giá Lao động</Typography>
         <Typography variant="body2" color="text.secondary">Chấm điểm hoàn thành công việc lao động cho từng học sinh</Typography>
       </Box>
+
+      {weeks.length > 0 && selectedWeekId && (
+        <WeekSelector weeks={weeks} selectedWeekId={selectedWeekId} onChange={setSelectedWeekId} />
+      )}
 
       {canManage && (
         <Card>
@@ -223,7 +235,9 @@ export default function LaborPage() {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Lịch sử đánh giá lao động</Typography>
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+            Lịch sử đánh giá lao động {selectedWeek ? `(Tuần ${selectedWeek.week_number})` : ''}
+          </Typography>
           <TableContainer className="mobile-card-table" sx={{ maxHeight: { sm: 420 } }}>
             <Table size="small" stickyHeader>
               <TableHead>

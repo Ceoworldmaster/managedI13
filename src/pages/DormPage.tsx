@@ -25,10 +25,13 @@ import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import HotelIcon from '@mui/icons-material/Hotel';
 import { useAuth } from '../lib/auth';
+import { useWeek } from '../lib/weekContext';
 import { supabase, type DormRoom, type DormInspection } from '../lib/supabase';
+import WeekSelector from '../components/WeekSelector';
 
 export default function DormPage() {
   const { profile } = useAuth();
+  const { weeks, selectedWeekId, selectedWeek, setSelectedWeekId } = useWeek();
   const [rooms, setRooms] = useState<DormRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState('');
   const [score, setScore] = useState(8);
@@ -49,14 +52,21 @@ export default function DormPage() {
     })();
   }, []);
 
+  // Inspections don't have a week_id column, so scope the history to the
+  // globally selected week using its date range instead.
   const loadInspections = useCallback(async () => {
+    if (!selectedWeek) {
+      setInspections([]);
+      return;
+    }
     const { data } = await supabase
       .from('dorm_inspections')
       .select('*, dorm_room:dorm_rooms(*), inspector:profiles!dorm_inspections_inspector_id_fkey(full_name)')
-      .order('inspection_date', { ascending: false })
-      .limit(30);
+      .gte('inspection_date', selectedWeek.start_date)
+      .lte('inspection_date', selectedWeek.end_date)
+      .order('inspection_date', { ascending: false });
     if (data) setInspections(data as unknown as DormInspection[]);
-  }, []);
+  }, [selectedWeek]);
 
   useEffect(() => { loadInspections(); }, [loadInspections]);
 
@@ -90,6 +100,10 @@ export default function DormPage() {
         <Typography variant="h5" fontWeight={700}>Chấm vệ sinh KTX</Typography>
         <Typography variant="body2" color="text.secondary">Đánh giá vệ sinh phòng, giờ tự học và giờ ngủ</Typography>
       </Box>
+
+      {weeks.length > 0 && selectedWeekId && (
+        <WeekSelector weeks={weeks} selectedWeekId={selectedWeekId} onChange={setSelectedWeekId} />
+      )}
 
       <Grid container spacing={{ xs: 2, md: 3 }}>
         <Grid size={{ xs: 12, md: 5 }}>
@@ -158,7 +172,9 @@ export default function DormPage() {
         <Grid size={{ xs: 12, md: 7 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Lịch sử chấm điểm</Typography>
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+                Lịch sử chấm điểm {selectedWeek ? `(Tuần ${selectedWeek.week_number})` : ''}
+              </Typography>
               <TableContainer className="mobile-card-table" sx={{ maxHeight: { sm: 500 } }}>
                 <Table size="small" stickyHeader>
                   <TableHead>

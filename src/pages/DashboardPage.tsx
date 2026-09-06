@@ -20,7 +20,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import { isStudentRole } from '../lib/auth';
-import { supabase, type Profile, type PointLog, type AcademicWeek, type Team, type DormRoom } from '../lib/supabase';
+import { useWeek } from '../lib/weekContext';
+import { supabase, type Profile, type PointLog, type Team, type DormRoom } from '../lib/supabase';
 import StudentDetailDialog from '../components/StudentDetailDialog';
 import WeeklyTrendChart, { type WeeklyTrendPoint } from '../components/WeeklyTrendChart';
 import WeekSelector from '../components/WeekSelector';
@@ -32,23 +33,20 @@ interface StudentScore {
 }
 
 export default function DashboardPage() {
+  const { weeks, selectedWeekId, selectedWeek: currentWeek, setSelectedWeekId } = useWeek();
   const [students, setStudents] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [dormRooms, setDormRooms] = useState<DormRoom[]>([]);
-  const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
-  const [currentWeek, setCurrentWeek] = useState<AcademicWeek | null>(null);
-  const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [detailStudent, setDetailStudent] = useState<Profile | null>(null);
   const [trend, setTrend] = useState<WeeklyTrendPoint[]>([]);
 
   const loadData = useCallback(async () => {
-    const [studentsRes, teamsRes, dormRes, weeksRes] = await Promise.all([
+    const [studentsRes, teamsRes, dormRes] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
       supabase.from('teams').select('*').order('id'),
       supabase.from('dorm_rooms').select('*').order('room_number'),
-      supabase.from('academic_weeks').select('*').order('week_number'),
     ]);
 
     // GVCN (giáo viên chủ nhiệm) is a teacher account, not a student — exclude
@@ -56,14 +54,6 @@ export default function DashboardPage() {
     if (studentsRes.data) setStudents((studentsRes.data as Profile[]).filter(isStudentRole));
     if (teamsRes.data) setTeams(teamsRes.data as Team[]);
     if (dormRes.data) setDormRooms(dormRes.data as DormRoom[]);
-    if (weeksRes.data) {
-      const weekList = weeksRes.data as AcademicWeek[];
-      setWeeks(weekList);
-      const open = weekList.find((w) => !w.is_closed);
-      const initial = open || weekList[0] || null;
-      setCurrentWeek(initial);
-      setSelectedWeekId(initial?.id ?? null);
-    }
   }, []);
 
   const loadPointLogs = useCallback(async () => {
@@ -78,14 +68,6 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadPointLogs(); }, [loadPointLogs]);
-
-  // Sync currentWeek when the selected week changes
-  useEffect(() => {
-    if (selectedWeekId) {
-      const w = weeks.find((wk) => wk.id === selectedWeekId);
-      if (w) setCurrentWeek(w);
-    }
-  }, [selectedWeekId, weeks]);
 
   const loadTrend = useCallback(async () => {
     if (weeks.length === 0 || students.length === 0) return;
@@ -345,12 +327,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <StudentDetailDialog
-        student={detailStudent}
-        onClose={() => setDetailStudent(null)}
-        weeks={weeks}
-        initialWeekId={selectedWeekId}
-      />
+      <StudentDetailDialog student={detailStudent} onClose={() => setDetailStudent(null)} />
     </Stack>
   );
 }

@@ -22,16 +22,13 @@ import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
-import { supabase, type Profile, type PointLog, type AcademicWeek, CATEGORY_LABELS } from '../lib/supabase';
+import { supabase, type Profile, type PointLog, CATEGORY_LABELS } from '../lib/supabase';
+import { useWeek } from '../lib/weekContext';
 import WeekSelector from './WeekSelector';
 
 interface StudentDetailDialogProps {
   student: Profile | null;
   onClose: () => void;
-  /** All academic weeks, used to populate the in-dialog week selector. */
-  weeks: AcademicWeek[];
-  /** Week to show by default when the dialog opens (e.g. the week selected on the Dashboard). */
-  initialWeekId: number | null;
 }
 
 function LogSection({
@@ -112,10 +109,11 @@ function LogSection({
   );
 }
 
-export default function StudentDetailDialog({ student, onClose, weeks, initialWeekId }: StudentDetailDialogProps) {
+export default function StudentDetailDialog({ student, onClose }: StudentDetailDialogProps) {
+  const { weeks, selectedWeekId: globalWeekId } = useWeek();
   const [logs, setLogs] = useState<PointLog[]>([]);
   const [loading, setLoading] = useState(false);
-  const [weekId, setWeekId] = useState<number | null>(initialWeekId);
+  const [weekId, setWeekId] = useState<number | null>(globalWeekId);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -135,11 +133,11 @@ export default function StudentDetailDialog({ student, onClose, weeks, initialWe
     setLoading(false);
   }, []);
 
-  // Reset to the week that was selected on the Dashboard whenever a new
-  // student is opened, then (re)load that week's logs.
+  // Reset to the globally selected week whenever a new student is opened,
+  // then (re)load that week's logs.
   useEffect(() => {
     if (student) {
-      setWeekId(initialWeekId);
+      setWeekId(globalWeekId);
     } else {
       setLogs([]);
     }

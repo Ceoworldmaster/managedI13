@@ -6,9 +6,11 @@ import Box from '@mui/material/Box';
 import { getTheme } from './theme';
 import { ThemeModeProvider, useThemeMode } from './lib/themeMode';
 import { AuthProvider, useAuth, hasRole, canRecordPoints } from './lib/auth';
+import { WeekProvider, useWeek } from './lib/weekContext';
 import Layout, { type PageKey } from './components/Layout';
 import ChangePasswordDialog from './components/ChangePasswordDialog';
 import LoginPage from './pages/LoginPage';
+import SelectWeekPage from './pages/SelectWeekPage';
 import DashboardPage from './pages/DashboardPage';
 import PointsPage from './pages/PointsPage';
 import ReportsPage from './pages/ReportsPage';
@@ -20,6 +22,7 @@ import RequestsPage from './pages/RequestsPage';
 
 function AppContent() {
   const { session, profile, loading } = useAuth();
+  const { hasChosenWeek, loading: weeksLoading } = useWeek();
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
 
   if (loading) {
@@ -32,6 +35,21 @@ function AppContent() {
 
   if (!session || !profile) {
     return <LoginPage />;
+  }
+
+  // Right after login, every page needs a working week — gate the rest of
+  // the app behind an explicit week choice instead of letting each page
+  // default/guess independently.
+  if (weeksLoading) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!hasChosenWeek) {
+    return <SelectWeekPage />;
   }
 
   // Role-based page access control
@@ -83,7 +101,9 @@ function ThemedApp() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <AppContent />
+        <WeekProvider>
+          <AppContent />
+        </WeekProvider>
       </AuthProvider>
     </ThemeProvider>
   );

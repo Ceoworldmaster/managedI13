@@ -27,7 +27,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useAuth, canSubmitReports, hasRole } from '../lib/auth';
-import { supabase, type AcademicWeek, type WeeklyReport, type ReportType, type Profile, REPORT_TYPE_LABELS } from '../lib/supabase';
+import { useWeek } from '../lib/weekContext';
+import { supabase, type WeeklyReport, type ReportType, type Profile, REPORT_TYPE_LABELS } from '../lib/supabase';
 import WeekSelector from '../components/WeekSelector';
 
 const REPORT_TYPES: ReportType[] = ['hoc_tap', 'ne_nep', 'lao_dong', 'ktx_phong', 'to_truong'];
@@ -35,9 +36,7 @@ const REPORT_TYPES: ReportType[] = ['hoc_tap', 'ne_nep', 'lao_dong', 'ktx_phong'
 export default function ReportsPage() {
   const { profile } = useAuth();
   const isGvcn = hasRole(profile, 'gvcn');
-  const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState('');
-  const [selectedWeekIdForSelector, setSelectedWeekIdForSelector] = useState<number | null>(null);
+  const { weeks, selectedWeekId, setSelectedWeekId } = useWeek();
   const [selectedType, setSelectedType] = useState<ReportType>('hoc_tap');
   const [notes, setNotes] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -48,15 +47,6 @@ export default function ReportsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: weeksData } = await supabase.from('academic_weeks').select('*').order('week_number');
-      if (weeksData) {
-        const weekList = weeksData as AcademicWeek[];
-        setWeeks(weekList);
-        const open = weekList.find((w) => !w.is_closed);
-        const initial = open || weekList[0];
-        setSelectedWeek(String(initial?.id || ''));
-        setSelectedWeekIdForSelector(initial?.id ?? null);
-      }
       if (isGvcn) {
         const { data: profilesData } = await supabase.from('profiles').select('*').order('full_name');
         if (profilesData) setAllProfiles(profilesData as Profile[]);
@@ -80,12 +70,12 @@ export default function ReportsPage() {
   useEffect(() => { loadReports(); }, [loadReports]);
 
   const handleSubmit = async () => {
-    if (!file || !selectedWeek || !profile) return;
+    if (!file || !selectedWeekId || !profile) return;
     setLoading(true);
 
-    const weekId = Number(selectedWeek);
+    const weekId = selectedWeekId;
     const fileExt = file.name.split('.').pop();
-    const fileName = `${profile.id}/${selectedWeek}/${selectedType}_${Date.now()}.${fileExt}`;
+    const fileName = `${profile.id}/${selectedWeekId}/${selectedType}_${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('excel-reports')
@@ -137,7 +127,7 @@ export default function ReportsPage() {
   // GVCN view: progress overview table
   if (isGvcn) {
     const reporters = allProfiles.filter((p) => canSubmitReports(p));
-    const weekId = Number(selectedWeek);
+    const weekId = selectedWeekId;
 
     return (
       <Stack spacing={3}>
@@ -146,11 +136,11 @@ export default function ReportsPage() {
           <Typography variant="body2" color="text.secondary">Tổng hợp tiến độ nộp báo cáo của ban cán sự</Typography>
         </Box>
 
-        {weeks.length > 0 && selectedWeekIdForSelector && (
+        {weeks.length > 0 && selectedWeekId && (
           <WeekSelector
             weeks={weeks}
-            selectedWeekId={selectedWeekIdForSelector}
-            onChange={(id) => { setSelectedWeekIdForSelector(id); setSelectedWeek(String(id)); }}
+            selectedWeekId={selectedWeekId}
+            onChange={setSelectedWeekId}
           />
         )}
 
@@ -244,11 +234,11 @@ export default function ReportsPage() {
         <Typography variant="body2" color="text.secondary">Tải lên file báo cáo hàng tuần (.xlsx, .xls)</Typography>
       </Box>
 
-      {weeks.length > 0 && selectedWeekIdForSelector && (
+      {weeks.length > 0 && selectedWeekId && (
         <WeekSelector
           weeks={weeks}
-          selectedWeekId={selectedWeekIdForSelector}
-          onChange={(id) => { setSelectedWeekIdForSelector(id); setSelectedWeek(String(id)); }}
+          selectedWeekId={selectedWeekId}
+          onChange={setSelectedWeekId}
         />
       )}
 
@@ -258,7 +248,11 @@ export default function ReportsPage() {
             <Grid size={{ xs: 12, md: 3 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Tuần học</InputLabel>
-                <Select value={selectedWeek} label="Tuần học" onChange={(e) => setSelectedWeek(e.target.value)}>
+                <Select
+                  value={selectedWeekId ? String(selectedWeekId) : ''}
+                  label="Tuần học"
+                  onChange={(e) => setSelectedWeekId(Number(e.target.value))}
+                >
                   {weeks.map((w) => (
                     <MenuItem key={w.id} value={String(w.id)}>Tuần {w.week_number}</MenuItem>
                   ))}
@@ -282,7 +276,7 @@ export default function ReportsPage() {
               </Button>
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
-              <Button variant="contained" fullWidth onClick={handleSubmit} disabled={!file || !selectedWeek || loading}
+              <Button variant="contained" fullWidth onClick={handleSubmit} disabled={!file || !selectedWeekId || loading}
                 startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}>
                 {loading ? 'Đang nộp...' : 'Nộp báo cáo'}
               </Button>

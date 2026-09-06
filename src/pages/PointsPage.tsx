@@ -24,16 +24,15 @@ import Alert from '@mui/material/Alert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import { useAuth, isStudentRole } from '../lib/auth';
-import { supabase, type Profile, type Rule, type PointLog, type AcademicWeek } from '../lib/supabase';
+import { useWeek } from '../lib/weekContext';
+import { supabase, type Profile, type Rule, type PointLog } from '../lib/supabase';
 import WeekSelector from '../components/WeekSelector';
 
 export default function PointsPage() {
   const { profile } = useAuth();
+  const { weeks, selectedWeekId, selectedWeek: currentWeek, setSelectedWeekId } = useWeek();
   const [students, setStudents] = useState<Profile[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
-  const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
-  const [currentWeek, setCurrentWeek] = useState<AcademicWeek | null>(null);
-  const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
 
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -43,44 +42,27 @@ export default function PointsPage() {
   const [toast, setToast] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const loadRefData = useCallback(async () => {
-    const [studentsRes, rulesRes, weeksRes] = await Promise.all([
+    const [studentsRes, rulesRes] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
       supabase.from('rules').select('*').eq('is_active', true).order('title'),
-      supabase.from('academic_weeks').select('*').order('week_number'),
     ]);
 
     if (studentsRes.data) setStudents((studentsRes.data as Profile[]).filter(isStudentRole));
     if (rulesRes.data) setRules(rulesRes.data as Rule[]);
-    if (weeksRes.data) {
-      const list = weeksRes.data as AcademicWeek[];
-      setWeeks(list);
-      const open = list.find((w) => !w.is_closed);
-      const initial = open || list[0] || null;
-      setCurrentWeek(initial);
-      setSelectedWeekId(initial?.id ?? null);
-    }
   }, []);
 
   const loadPointLogs = useCallback(async () => {
-    if (!currentWeek) return;
+    if (!selectedWeekId) return;
     const { data } = await supabase
       .from('point_logs')
       .select('*, student:profiles!point_logs_student_id_fkey(*), recorder:profiles!point_logs_recorder_id_fkey(full_name), rule:rules(*)')
-      .eq('week_id', currentWeek.id)
+      .eq('week_id', selectedWeekId)
       .order('created_at', { ascending: false });
     if (data) setPointLogs(data as unknown as PointLog[]);
-  }, [currentWeek]);
+  }, [selectedWeekId]);
 
   useEffect(() => { loadRefData(); }, [loadRefData]);
   useEffect(() => { loadPointLogs(); }, [loadPointLogs]);
-
-  // Sync currentWeek when the selected week changes
-  useEffect(() => {
-    if (selectedWeekId) {
-      const w = weeks.find((wk) => wk.id === selectedWeekId);
-      if (w) setCurrentWeek(w);
-    }
-  }, [selectedWeekId, weeks]);
 
   const handleQuickLog = async () => {
     if (!selectedStudent || !selectedRule || !currentWeek || !profile) return;
