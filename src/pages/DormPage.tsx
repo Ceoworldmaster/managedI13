@@ -91,16 +91,16 @@ export default function DormPage() {
         <Typography variant="body2" color="text.secondary">Đánh giá vệ sinh phòng, giờ tự học và giờ ngủ</Typography>
       </Box>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         <Grid size={{ xs: 12, md: 5 }}>
           <Card>
-            <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2.5 }}>
                 <HotelIcon color="primary" />
                 <Typography variant="h6" fontWeight={600}>Form chấm điểm</Typography>
               </Stack>
 
-              <Stack spacing={3}>
+              <Stack spacing={2.5}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Phòng KTX</InputLabel>
                   <Select value={selectedRoom} label="Phòng KTX" onChange={(e) => setSelectedRoom(e.target.value)}>

@@ -23,6 +23,7 @@ import { isStudentRole } from '../lib/auth';
 import { supabase, type Profile, type PointLog, type AcademicWeek, type Team, type DormRoom } from '../lib/supabase';
 import StudentDetailDialog from '../components/StudentDetailDialog';
 import WeeklyTrendChart, { type WeeklyTrendPoint } from '../components/WeeklyTrendChart';
+import WeekSelector from '../components/WeekSelector';
 
 interface StudentScore {
   profile: Profile;
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [currentWeek, setCurrentWeek] = useState<AcademicWeek | null>(null);
+  const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [detailStudent, setDetailStudent] = useState<Profile | null>(null);
   const [trend, setTrend] = useState<WeeklyTrendPoint[]>([]);
@@ -55,24 +57,35 @@ export default function DashboardPage() {
     if (teamsRes.data) setTeams(teamsRes.data as Team[]);
     if (dormRes.data) setDormRooms(dormRes.data as DormRoom[]);
     if (weeksRes.data) {
-      setWeeks(weeksRes.data as AcademicWeek[]);
-      const open = (weeksRes.data as AcademicWeek[]).find((w) => !w.is_closed);
-      setCurrentWeek(open || (weeksRes.data as AcademicWeek[])[0] || null);
+      const weekList = weeksRes.data as AcademicWeek[];
+      setWeeks(weekList);
+      const open = weekList.find((w) => !w.is_closed);
+      const initial = open || weekList[0] || null;
+      setCurrentWeek(initial);
+      setSelectedWeekId(initial?.id ?? null);
     }
   }, []);
 
   const loadPointLogs = useCallback(async () => {
-    if (!currentWeek) return;
+    if (!selectedWeekId) return;
     const { data } = await supabase
       .from('point_logs')
       .select('*, student:profiles!point_logs_student_id_fkey(*), recorder:profiles!point_logs_recorder_id_fkey(full_name), rule:rules(*)')
-      .eq('week_id', currentWeek.id)
+      .eq('week_id', selectedWeekId)
       .order('created_at', { ascending: false });
     if (data) setPointLogs(data as unknown as PointLog[]);
-  }, [currentWeek]);
+  }, [selectedWeekId]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadPointLogs(); }, [loadPointLogs]);
+
+  // Sync currentWeek when the selected week changes
+  useEffect(() => {
+    if (selectedWeekId) {
+      const w = weeks.find((wk) => wk.id === selectedWeekId);
+      if (w) setCurrentWeek(w);
+    }
+  }, [selectedWeekId, weeks]);
 
   const loadTrend = useCallback(async () => {
     if (weeks.length === 0 || students.length === 0) return;
@@ -145,17 +158,21 @@ export default function DashboardPage() {
         </Typography>
       </Box>
 
+      {weeks.length > 0 && (
+        <WeekSelector weeks={weeks} selectedWeekId={selectedWeekId} onChange={setSelectedWeekId} />
+      )}
+
       {/* KPI Cards */}
-      <Grid container spacing={2}>
+      <Grid container spacing={{ xs: 1.5, sm: 2 }}>
         {kpiCards.map((kpi) => (
           <Grid key={kpi.label} size={{ xs: 6, md: 3 }}>
             <Card>
-              <CardContent sx={{ p: 2.5 }}>
-                <Stack direction="row" alignItems="center" spacing={2}>
+              <CardContent sx={{ p: { xs: 1.75, sm: 2.5 } }}>
+                <Stack direction="row" alignItems="center" spacing={{ xs: 1.25, sm: 2 }}>
                   <Box
                     sx={{
-                      width: 44,
-                      height: 44,
+                      width: { xs: 38, sm: 44 },
+                      height: { xs: 38, sm: 44 },
                       borderRadius: 2,
                       bgcolor: kpi.bgColor,
                       display: 'flex',
@@ -163,15 +180,16 @@ export default function DashboardPage() {
                       justifyContent: 'center',
                       color: kpi.color,
                       flexShrink: 0,
+                      '& .MuiSvgIcon-root': { fontSize: { xs: 18, sm: 24 } },
                     }}
                   >
                     {kpi.icon}
                   </Box>
-                  <Box>
-                    <Typography variant="h5" fontWeight={700}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>
                       {kpi.value}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" noWrap>
                       {kpi.label}
                     </Typography>
                   </Box>

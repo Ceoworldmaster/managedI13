@@ -25,13 +25,15 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import { useAuth, isStudentRole } from '../lib/auth';
 import { supabase, type Profile, type Rule, type PointLog, type AcademicWeek } from '../lib/supabase';
+import WeekSelector from '../components/WeekSelector';
 
 export default function PointsPage() {
   const { profile } = useAuth();
   const [students, setStudents] = useState<Profile[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
-  const [, setWeeks] = useState<AcademicWeek[]>([]);
+  const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
   const [currentWeek, setCurrentWeek] = useState<AcademicWeek | null>(null);
+  const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
 
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -53,7 +55,9 @@ export default function PointsPage() {
       const list = weeksRes.data as AcademicWeek[];
       setWeeks(list);
       const open = list.find((w) => !w.is_closed);
-      setCurrentWeek(open || list[0] || null);
+      const initial = open || list[0] || null;
+      setCurrentWeek(initial);
+      setSelectedWeekId(initial?.id ?? null);
     }
   }, []);
 
@@ -69,6 +73,14 @@ export default function PointsPage() {
 
   useEffect(() => { loadRefData(); }, [loadRefData]);
   useEffect(() => { loadPointLogs(); }, [loadPointLogs]);
+
+  // Sync currentWeek when the selected week changes
+  useEffect(() => {
+    if (selectedWeekId) {
+      const w = weeks.find((wk) => wk.id === selectedWeekId);
+      if (w) setCurrentWeek(w);
+    }
+  }, [selectedWeekId, weeks]);
 
   const handleQuickLog = async () => {
     if (!selectedStudent || !selectedRule || !currentWeek || !profile) return;
@@ -123,9 +135,13 @@ export default function PointsPage() {
         </Typography>
       </Box>
 
+      {weeks.length > 0 && (
+        <WeekSelector weeks={weeks} selectedWeekId={selectedWeekId} onChange={setSelectedWeekId} />
+      )}
+
       <Card>
-        <CardContent sx={{ p: 3 }}>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2.5 }}>
             <EditNoteIcon color="primary" />
             <Typography variant="h6" fontWeight={600}>Ghi điểm nhanh</Typography>
           </Stack>
