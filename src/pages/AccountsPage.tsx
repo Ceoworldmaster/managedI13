@@ -28,11 +28,15 @@ import IconButton from '@mui/material/IconButton';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import { supabase, type Profile, type Team, type DormRoom, type UserRole, ROLE_LABELS } from '../lib/supabase';
 
 const ROLES: UserRole[] = ['gvcn', 'lop_truong', 'lop_pho_hoc_tap', 'lop_pho_ne_nep', 'lop_pho_van_nghe', 'lop_pho_lao_dong', 'to_truong', 'truong_phong_ktx', 'hoc_sinh'];
 
 export default function AccountsPage() {
+  const theme = useTheme();
+  const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
   const [accounts, setAccounts] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [dormRooms, setDormRooms] = useState<DormRoom[]>([]);
@@ -100,19 +104,19 @@ export default function AccountsPage() {
 
   return (
     <Stack spacing={3}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { sm: 'center' }, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" fontWeight={700}>Quản lý tài khoản</Typography>
           <Typography variant="body2" color="text.secondary">Tạo và quản lý tài khoản lớp</Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
           Tạo tài khoản mới
         </Button>
       </Box>
 
       <Card>
         <CardContent sx={{ p: 0 }}>
-          <TableContainer>
+          <TableContainer className="mobile-card-table">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -135,11 +139,11 @@ export default function AccountsPage() {
                 ) : (
                   accounts.map((acc) => (
                     <TableRow key={acc.id} hover>
-                      <TableCell>
+                      <TableCell data-label="Họ tên">
                         <Typography variant="body2" fontWeight={500}>{acc.full_name}</Typography>
                       </TableCell>
-                      <TableCell>{acc.student_code}</TableCell>
-                      <TableCell>
+                      <TableCell data-label="Mã HS">{acc.student_code}</TableCell>
+                      <TableCell data-label="Vai trò">
                         <Chip
                           size="small"
                           label={ROLE_LABELS[acc.role]}
@@ -148,13 +152,13 @@ export default function AccountsPage() {
                           sx={{ height: 22, fontSize: '0.7rem' }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Tổ">
                         {teams.find((t) => t.id === acc.team_id)?.name || '-'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Phòng KTX">
                         {dormRooms.find((r) => r.id === acc.dorm_room_id)?.room_number || '-'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Đổi mật khẩu">
                         {acc.must_change_password ? (
                           <Chip size="small" label="Cần đổi" color="warning" sx={{ height: 22, fontSize: '0.7rem' }} />
                         ) : (
@@ -175,7 +179,7 @@ export default function AccountsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth fullScreen={fullScreenDialog}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <PersonAddIcon color="primary" />
           Tạo tài khoản mới
@@ -183,23 +187,23 @@ export default function AccountsPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Grid container spacing={2}>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth size="small" label="Họ tên" value={newAccount.full_name}
                   onChange={(e) => setNewAccount({ ...newAccount, full_name: e.target.value })} />
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth size="small" label="Mã học sinh" value={newAccount.student_code}
                   onChange={(e) => setNewAccount({ ...newAccount, student_code: e.target.value })} />
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth size="small" label="Email" type="email" value={newAccount.email}
                   onChange={(e) => setNewAccount({ ...newAccount, email: e.target.value })} />
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth size="small" label="Mật khẩu" value={newAccount.password}
                   onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })} />
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Vai trò</InputLabel>
                   <Select value={newAccount.role} label="Vai trò" onChange={(e) => setNewAccount({ ...newAccount, role: e.target.value as UserRole })}>
@@ -209,11 +213,11 @@ export default function AccountsPage() {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth size="small" label="Số điện thoại" value={newAccount.phone_number}
                   onChange={(e) => setNewAccount({ ...newAccount, phone_number: e.target.value })} />
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Tổ</InputLabel>
                   <Select value={newAccount.team_id} label="Tổ" onChange={(e) => setNewAccount({ ...newAccount, team_id: e.target.value })}>
@@ -222,7 +226,7 @@ export default function AccountsPage() {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid size={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Phòng KTX</InputLabel>
                   <Select value={newAccount.dorm_room_id} label="Phòng KTX" onChange={(e) => setNewAccount({ ...newAccount, dorm_room_id: e.target.value })}>

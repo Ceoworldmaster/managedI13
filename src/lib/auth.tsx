@@ -117,6 +117,12 @@ export function canManageAccounts(profile: Profile | null): boolean {
   return hasRole(profile, 'gvcn');
 }
 
+// GVCN acts as the admin/approver for submitted requests (đơn từ, đề xuất,
+// nghị quyết) — this app has no separate "admin" role beyond gvcn.
+export function canApproveRequests(profile: Profile | null): boolean {
+  return hasRole(profile, 'gvcn');
+}
+
 export function canSubmitReports(profile: Profile | null): boolean {
   return hasRole(profile, 'gvcn', 'lop_truong', 'lop_pho_hoc_tap', 'lop_pho_ne_nep', 'lop_pho_van_nghe', 'lop_pho_lao_dong', 'truong_phong_ktx', 'to_truong');
 }

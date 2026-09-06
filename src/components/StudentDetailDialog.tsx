@@ -20,6 +20,8 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import { supabase, type Profile, type PointLog, CATEGORY_LABELS } from '../lib/supabase';
 
 interface StudentDetailDialogProps {
@@ -56,7 +58,7 @@ function LogSection({
           <Chip size="small" label={`${sign}${total} điểm`} color={color} sx={{ fontWeight: 700 }} />
         )}
       </Stack>
-      <TableContainer sx={{ maxHeight: 260, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+      <TableContainer className="mobile-card-table" sx={{ maxHeight: 260, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -76,18 +78,18 @@ function LogSection({
             ) : (
               items.map((l) => (
                 <TableRow key={l.id} hover>
-                  <TableCell>
+                  <TableCell data-label="Ngày">
                     <Typography variant="caption">{new Date(l.created_at).toLocaleDateString('vi-VN')}</Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Nội dung">
                     <Typography variant="body2">{l.reason}</Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Danh mục">
                     <Typography variant="caption" color="text.secondary">
                       {CATEGORY_LABELS[l.category]}
                     </Typography>
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" data-label="Điểm">
                     <Chip
                       size="small"
                       label={`${sign}${l.points}`}
@@ -108,6 +110,8 @@ function LogSection({
 export default function StudentDetailDialog({ student, onClose }: StudentDetailDialogProps) {
   const [logs, setLogs] = useState<PointLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   const loadLogs = useCallback(async (studentId: string) => {
     setLoading(true);
@@ -135,7 +139,7 @@ export default function StudentDetailDialog({ student, onClose }: StudentDetailD
   const netScore = 100 + meritTotal - violationTotal;
 
   return (
-    <Dialog open={!!student} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={!!student} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       {student && (
         <>
           <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>

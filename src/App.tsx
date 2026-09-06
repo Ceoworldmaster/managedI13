@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
-import theme from './theme';
+import { getTheme } from './theme';
+import { ThemeModeProvider, useThemeMode } from './lib/themeMode';
 import { AuthProvider, useAuth, hasRole, canRecordPoints } from './lib/auth';
 import Layout, { type PageKey } from './components/Layout';
 import ChangePasswordDialog from './components/ChangePasswordDialog';
@@ -15,6 +16,7 @@ import DormPage from './pages/DormPage';
 import LaborPage from './pages/LaborPage';
 import SignaturesPage from './pages/SignaturesPage';
 import AccountsPage from './pages/AccountsPage';
+import RequestsPage from './pages/RequestsPage';
 
 function AppContent() {
   const { session, profile, loading } = useAuth();
@@ -42,6 +44,7 @@ function AppContent() {
       case 'labor': return true;
       case 'signatures': return hasRole(profile, 'gvcn', 'hoc_sinh');
       case 'accounts': return hasRole(profile, 'gvcn');
+      case 'requests': return true;
       default: return false;
     }
   };
@@ -58,6 +61,7 @@ function AppContent() {
       case 'labor': return <LaborPage />;
       case 'signatures': return <SignaturesPage />;
       case 'accounts': return <AccountsPage />;
+      case 'requests': return <RequestsPage />;
       default: return <DashboardPage />;
     }
   };
@@ -72,7 +76,9 @@ function AppContent() {
   );
 }
 
-function App() {
+function ThemedApp() {
+  const { mode } = useThemeMode();
+  const theme = useMemo(() => getTheme(mode), [mode]);
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -80,6 +86,14 @@ function App() {
         <AppContent />
       </AuthProvider>
     </ThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeModeProvider>
+      <ThemedApp />
+    </ThemeModeProvider>
   );
 }
 

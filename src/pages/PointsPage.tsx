@@ -195,7 +195,7 @@ export default function PointsPage() {
           <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
             Lịch sử ghi điểm (tuần này)
           </Typography>
-          <TableContainer sx={{ maxHeight: 500 }}>
+          <TableContainer className="mobile-card-table" sx={{ maxHeight: { sm: 500 } }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -216,8 +216,8 @@ export default function PointsPage() {
                 ) : (
                   pointLogs.map((log) => (
                     <TableRow key={log.id} hover>
-                      <TableCell>{log.student?.full_name || '-'}</TableCell>
-                      <TableCell>
+                      <TableCell data-label="Học sinh">{log.student?.full_name || '-'}</TableCell>
+                      <TableCell data-label="Điểm">
                         <Chip
                           size="small"
                           label={log.type === 'tru' ? `-${log.points}` : `+${log.points}`}
@@ -225,10 +225,10 @@ export default function PointsPage() {
                           sx={{ fontWeight: 700, height: 20, fontSize: '0.7rem' }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Lý do">
                         <Typography variant="caption">{log.reason}</Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Người ghi">
                         <Typography variant="caption" color="text.secondary">{log.recorder?.full_name || '-'}</Typography>
                       </TableCell>
                       <TableCell align="right">

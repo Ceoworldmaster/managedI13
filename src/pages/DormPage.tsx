@@ -159,7 +159,7 @@ export default function DormPage() {
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Lịch sử chấm điểm</Typography>
-              <TableContainer sx={{ maxHeight: 500 }}>
+              <TableContainer className="mobile-card-table" sx={{ maxHeight: { sm: 500 } }}>
                 <Table size="small" stickyHeader>
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -181,11 +181,11 @@ export default function DormPage() {
                     ) : (
                       inspections.map((insp) => (
                         <TableRow key={insp.id} hover>
-                          <TableCell>{insp.dorm_room?.room_number || '-'}</TableCell>
-                          <TableCell>
+                          <TableCell data-label="Phòng">{insp.dorm_room?.room_number || '-'}</TableCell>
+                          <TableCell data-label="Ngày">
                             <Typography variant="caption">{new Date(insp.inspection_date).toLocaleDateString('vi-VN')}</Typography>
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Vệ sinh">
                             <Chip
                               size="small"
                               label={insp.cleanliness_score}
@@ -193,7 +193,7 @@ export default function DormPage() {
                               sx={{ fontWeight: 700, height: 22, fontSize: '0.75rem' }}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Tự học">
                             <Chip
                               size="small"
                               label={insp.self_study_status ? 'Đạt' : 'Không'}
@@ -202,7 +202,7 @@ export default function DormPage() {
                               sx={{ height: 22, fontSize: '0.7rem' }}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Giờ ngủ">
                             <Chip
                               size="small"
                               label={insp.curfew_status ? 'Đạt' : 'Không'}
@@ -211,7 +211,7 @@ export default function DormPage() {
                               sx={{ height: 22, fontSize: '0.7rem' }}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Ghi chú">
                             <Typography variant="caption" color="text.secondary">{insp.notes || '-'}</Typography>
                           </TableCell>
                         </TableRow>

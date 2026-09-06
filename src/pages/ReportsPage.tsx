@@ -154,8 +154,8 @@ export default function ReportsPage() {
               </FormControl>
             </Stack>
 
-            <TableContainer>
-              <Table size="small">
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small" sx={{ minWidth: 640 }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'background.default' }}>
                     <TableCell sx={{ fontWeight: 600}}>Cán sự</TableCell>
@@ -292,7 +292,7 @@ export default function ReportsPage() {
       <Card>
         <CardContent>
           <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Báo cáo đã nộp</Typography>
-          <TableContainer>
+          <TableContainer className="mobile-card-table">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -314,15 +314,15 @@ export default function ReportsPage() {
                 ) : (
                   reports.map((r) => (
                     <TableRow key={r.id} hover>
-                      <TableCell>{r.week?.week_number ? `Tuần ${r.week.week_number}` : '-'}</TableCell>
-                      <TableCell>{REPORT_TYPE_LABELS[r.report_type]}</TableCell>
-                      <TableCell>
+                      <TableCell data-label="Tuần">{r.week?.week_number ? `Tuần ${r.week.week_number}` : '-'}</TableCell>
+                      <TableCell data-label="Loại">{REPORT_TYPE_LABELS[r.report_type]}</TableCell>
+                      <TableCell data-label="File">
                         <Stack direction="row" spacing={1} alignItems="center">
                           <DescriptionIcon fontSize="small" color="action" />
                           <Typography variant="caption">{r.file_name}</Typography>
                         </Stack>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Trạng thái">
                         <Chip
                           size="small"
                           label={r.status === 'reviewed' ? 'Đã duyệt' : 'Đã nộp'}
@@ -330,7 +330,7 @@ export default function ReportsPage() {
                           sx={{ height: 22, fontSize: '0.7rem' }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Ngày nộp">
                         <Typography variant="caption">{new Date(r.submitted_at).toLocaleDateString('vi-VN')}</Typography>
                       </TableCell>
                       <TableCell>

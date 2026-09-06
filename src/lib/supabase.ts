@@ -62,14 +62,14 @@ export type UserRole =
   | 'truong_phong_ktx'
   | 'hoc_sinh';
 
-export type DutyArea = 'lop_hoc' | 'ktx';
-export type DutyStatus = 'chua_truc' | 'da_truc' | 'vang_truc';
-
 export type PointCategory = 'hoc_tap' | 'ne_nep' | 'lao_dong' | 'ktx' | 'tap_the';
 export type PointType = 'cong' | 'tru';
 export type RecordStatus = 'pending' | 'approved' | 'rejected';
 export type ReportType = 'hoc_tap' | 'ne_nep' | 'lao_dong' | 'ktx_phong' | 'to_truong';
 export type ReportStatus = 'submitted' | 'reviewed';
+
+export type RequestType = 've_nha' | 'nghi_hoc' | 'de_xuat' | 'nghi_quyet' | 'khac';
+export type RequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Profile {
   id: string;
@@ -159,21 +159,6 @@ export interface DocumentSignature {
   student?: Profile;
 }
 
-export interface DutySchedule {
-  id: number;
-  duty_date: string;
-  area: DutyArea;
-  team_id: number | null;
-  dorm_room_id: number | null;
-  description: string | null;
-  status: DutyStatus;
-  created_by: string | null;
-  created_at: string;
-  team?: Team | null;
-  dorm_room?: DormRoom | null;
-  members?: { student: Profile }[];
-}
-
 export interface LaborEvaluation {
   id: string;
   duty_schedule_id: number | null;
@@ -188,7 +173,6 @@ export interface LaborEvaluation {
   created_at: string;
   student?: Profile;
   evaluator?: Profile;
-  duty_schedule?: DutySchedule | null;
 }
 
 export interface WeeklyReport {
@@ -205,6 +189,33 @@ export interface WeeklyReport {
   week?: AcademicWeek;
 }
 
+export interface RequestAttachment {
+  id: string;
+  request_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  uploaded_at: string;
+}
+
+export interface ClassRequest {
+  id: string;
+  requester_id: string;
+  request_type: RequestType;
+  title: string;
+  content: string;
+  date_from: string | null;
+  date_to: string | null;
+  status: RequestStatus;
+  reviewer_id: string | null;
+  review_note: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  requester?: Profile;
+  reviewer?: Profile;
+  attachments?: RequestAttachment[];
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   gvcn: 'Giáo viên chủ nhiệm',
   lop_truong: 'Lớp trưởng',
@@ -217,15 +228,18 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   hoc_sinh: 'Học sinh',
 };
 
-export const DUTY_AREA_LABELS: Record<DutyArea, string> = {
-  lop_hoc: 'Lớp học',
-  ktx: 'Phòng KTX',
+export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
+  ve_nha: 'Đơn xin về nhà',
+  nghi_hoc: 'Đơn xin nghỉ học',
+  de_xuat: 'Đề xuất',
+  nghi_quyet: 'Nghị quyết',
+  khac: 'Loại đơn khác',
 };
 
-export const DUTY_STATUS_LABELS: Record<DutyStatus, string> = {
-  chua_truc: 'Chưa trực',
-  da_truc: 'Đã trực',
-  vang_truc: 'Vắng trực',
+export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
+  pending: 'Chờ duyệt',
+  approved: 'Đã duyệt',
+  rejected: 'Từ chối',
 };
 
 export const CATEGORY_LABELS: Record<PointCategory, string> = {

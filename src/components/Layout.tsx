@@ -25,12 +25,20 @@ import EngineeringIcon from '@mui/icons-material/Engineering';
 import DrawIcon from '@mui/icons-material/Draw';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import BottomNavigation from '@mui/material/BottomNavigation';
+import BottomNavigationAction from '@mui/material/BottomNavigationAction';
+import Paper from '@mui/material/Paper';
+import Tooltip from '@mui/material/Tooltip';
 import { useAuth, hasRole } from '../lib/auth';
 import { ROLE_LABELS, type UserRole } from '../lib/supabase';
+import { useThemeMode } from '../lib/themeMode';
 
 const drawerWidth = 240;
 
-export type PageKey = 'dashboard' | 'points' | 'reports' | 'dorm' | 'labor' | 'signatures' | 'accounts';
+export type PageKey = 'dashboard' | 'points' | 'reports' | 'dorm' | 'labor' | 'signatures' | 'accounts' | 'requests';
 
 interface NavItem {
   key: PageKey;
@@ -47,10 +55,14 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'points', label: 'Nhập lỗi & Điểm cộng', icon: <EditNoteIcon />, roles: BAN_CAN_SU_ROLES },
   { key: 'reports', label: 'Báo cáo Excel', icon: <AssessmentIcon />, roles: BAN_CAN_SU_ROLES },
   { key: 'dorm', label: 'Chấm KTX', icon: <CleaningServicesIcon />, roles: ['gvcn', 'truong_phong_ktx'] },
-  { key: 'labor', label: 'Lao động & Lịch trực', icon: <EngineeringIcon />, roles: ALL_ROLES },
+  { key: 'labor', label: 'Đánh giá Lao động', icon: <EngineeringIcon />, roles: ALL_ROLES },
+  { key: 'requests', label: 'Đơn từ & Đề xuất', icon: <AssignmentIcon />, roles: ALL_ROLES },
   { key: 'signatures', label: 'Ký số Hồ sơ', icon: <DrawIcon />, roles: ['gvcn', 'hoc_sinh'] },
   { key: 'accounts', label: 'Quản lý Tài khoản', icon: <ManageAccountsIcon />, roles: ['gvcn'] },
 ];
+
+// Subset shown in the mobile bottom nav (space only fits ~5 comfortably).
+const BOTTOM_NAV_KEYS: PageKey[] = ['dashboard', 'requests', 'points', 'labor', 'accounts'];
 
 interface LayoutProps {
   currentPage: PageKey;
@@ -60,10 +72,12 @@ interface LayoutProps {
 
 export default function Layout({ currentPage, onNavigate, children }: LayoutProps) {
   const { profile, signOut } = useAuth();
+  const { mode, toggleMode } = useThemeMode();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   const visibleItems = NAV_ITEMS.filter((item) => hasRole(profile, ...item.roles));
+  const bottomNavItems = visibleItems.filter((item) => BOTTOM_NAV_KEYS.includes(item.key)).slice(0, 5);
 
   const handleNav = (page: PageKey) => {
     onNavigate(page);
@@ -148,6 +162,11 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
           </IconButton>
           <Box sx={{ flexGrow: 1 }} />
           <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Tooltip title={mode === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}>
+              <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary' }}>
+                {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
             <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
               <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
                 {profile?.full_name}
@@ -213,10 +232,43 @@ export default function Layout({ currentPage, onNavigate, children }: LayoutProp
         }}
       >
         <Toolbar />
-        <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, pb: { xs: 9, md: 3 } }}>
           {children}
         </Box>
       </Box>
+
+      {/* Mobile bottom navigation — quick access to the most-used pages */}
+      {bottomNavItems.length > 1 && (
+        <Paper
+          elevation={8}
+          sx={{
+            display: { xs: 'block', md: 'none' },
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: (t) => t.zIndex.appBar,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            pb: 'env(safe-area-inset-bottom)',
+          }}
+        >
+          <BottomNavigation
+            showLabels
+            value={bottomNavItems.findIndex((i) => i.key === currentPage)}
+            onChange={(_, newValue) => handleNav(bottomNavItems[newValue].key)}
+          >
+            {bottomNavItems.map((item) => (
+              <BottomNavigationAction
+                key={item.key}
+                label={item.label.split(' ')[0]}
+                icon={item.icon}
+                sx={{ minWidth: 0, px: 0.5, fontSize: '0.65rem' }}
+              />
+            ))}
+          </BottomNavigation>
+        </Paper>
+      )}
     </Box>
   );
 }

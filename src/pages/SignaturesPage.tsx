@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack';
 import Grid from '@mui/material/Grid';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Avatar from '@mui/material/Avatar';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -17,13 +18,86 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import TextField from '@mui/material/TextField';
+import { alpha } from '@mui/material/styles';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import InboxIcon from '@mui/icons-material/Inbox';
+import EventRangeIcon from '@mui/icons-material/DateRange';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import HomeIcon from '@mui/icons-material/Home';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
+import GavelIcon from '@mui/icons-material/Gavel';
+import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
+import ImageIcon from '@mui/icons-material/Image';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { useAuth, hasRole } from '../lib/auth';
-import { supabase, type DocumentSignature, type Profile } from '../lib/supabase';
+import {
+  supabase,
+  type DocumentSignature,
+  type Profile,
+  type ClassRequest,
+  type RequestAttachment,
+  type RequestType,
+  REQUEST_TYPE_LABELS,
+} from '../lib/supabase';
 
 const NOI_QUY_DOC_URL = 'https://docs.google.com/document/d/example/export?format=pdf';
+
+// Visual identity per request type: a small icon + accent color, used on
+// avatars, chips, and the card's accent border in the approval queue.
+const REQUEST_TYPE_META: Record<RequestType, { icon: typeof HomeIcon; color: string }> = {
+  ve_nha: { icon: HomeIcon, color: '#0EA5E9' },
+  nghi_hoc: { icon: EventBusyIcon, color: '#F59E0B' },
+  de_xuat: { icon: LightbulbIcon, color: '#8B5CF6' },
+  nghi_quyet: { icon: GavelIcon, color: '#1E3A5F' },
+  khac: { icon: DriveFileRenameOutlineIcon, color: '#64748B' },
+};
+
+function fileExt(name: string) {
+  return (name.split('.').pop() || '').toLowerCase();
+}
+
+function AttachmentIcon({ fileType, fileName }: { fileType: string; fileName: string }) {
+  const ext = fileExt(fileName);
+  if (fileType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext)) {
+    return <ImageIcon fontSize="inherit" />;
+  }
+  if (ext === 'pdf') return <PictureAsPdfIcon fontSize="inherit" />;
+  return <DescriptionIcon fontSize="inherit" />;
+}
+
+function AttachmentList({ attachments }: { attachments?: RequestAttachment[] }) {
+  if (!attachments || attachments.length === 0) return null;
+  return (
+    <Stack direction="row" spacing={0.75} flexWrap="wrap" rowGap={0.75} sx={{ mt: 1 }}>
+      {attachments.map((a) => (
+        <Chip
+          key={a.id}
+          size="small"
+          variant="outlined"
+          icon={<AttachmentIcon fileType={a.file_type} fileName={a.file_name} />}
+          label={a.file_name}
+          clickable
+          component="a"
+          href={a.file_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{ height: 24, fontSize: '0.72rem', maxWidth: 240, borderRadius: 1.5 }}
+        />
+      ))}
+    </Stack>
+  );
+}
 
 export default function SignaturesPage() {
   const { profile } = useAuth();
@@ -34,6 +108,43 @@ export default function SignaturesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+
+  // ---------- Đơn chờ duyệt (chỉ GVCN) ----------
+  const [pendingRequests, setPendingRequests] = useState<ClassRequest[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  const loadPendingRequests = useCallback(async () => {
+    if (!isGvcn) return;
+    const { data, error } = await supabase
+      .from('requests')
+      .select('*, requester:profiles!requests_requester_id_fkey(*), attachments:request_attachments(*)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (!error && data) setPendingRequests(data as unknown as ClassRequest[]);
+  }, [isGvcn]);
+
+  const handleReviewRequest = async (id: string, status: 'approved' | 'rejected') => {
+    if (!profile) return;
+    setReviewingId(id);
+    const { error } = await supabase
+      .from('requests')
+      .update({
+        status,
+        reviewer_id: profile.id,
+        review_note: reviewNotes[id]?.trim() || null,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      setToast({ open: true, message: 'Lỗi: ' + error.message, severity: 'error' });
+    } else {
+      setToast({ open: true, message: status === 'approved' ? 'Đã duyệt đơn' : 'Đã từ chối đơn', severity: 'success' });
+      loadPendingRequests();
+    }
+    setReviewingId(null);
+  };
 
   const loadSignatures = useCallback(async () => {
     if (!profile) return;
@@ -54,8 +165,9 @@ export default function SignaturesPage() {
       supabase.from('profiles').select('*').eq('role', 'hoc_sinh').order('full_name').then(({ data }) => {
         if (data) setAllProfiles(data as Profile[]);
       });
+      loadPendingRequests();
     }
-  }, [loadSignatures, isGvcn]);
+  }, [loadSignatures, isGvcn, loadPendingRequests]);
 
   const handleUploadSigned = async () => {
     if (!file || !profile) return;
@@ -222,47 +334,199 @@ export default function SignaturesPage() {
     <Stack spacing={3}>
       <Box>
         <Typography variant="h5" fontWeight={700}>Quản lý ký số hồ sơ</Typography>
-        <Typography variant="body2" color="text.secondary">Tổng hợp trạng thái ký số của học sinh</Typography>
+        <Typography variant="body2" color="text.secondary">Duyệt đơn từ và tổng hợp trạng thái ký số của học sinh</Typography>
       </Box>
 
       <Card>
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: pendingRequests.length ? 2.5 : 1 }}>
+            <Box
+              sx={{
+                width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                bgcolor: (t) => alpha(t.palette.warning.main, t.palette.mode === 'dark' ? 0.24 : 0.14),
+                color: 'warning.main',
+              }}
+            >
+              <AssignmentTurnedInIcon fontSize="small" />
+            </Box>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h6" fontWeight={700} lineHeight={1.2}>Đơn chờ duyệt</Typography>
+              <Typography variant="caption" color="text.secondary">Đơn từ và đề xuất của học sinh đang chờ giáo viên chủ nhiệm xử lý</Typography>
+            </Box>
+            {pendingRequests.length > 0 && (
+              <Chip
+                size="small"
+                label={`${pendingRequests.length} đơn`}
+                sx={{
+                  fontWeight: 700, height: 26,
+                  bgcolor: (t) => alpha(t.palette.warning.main, t.palette.mode === 'dark' ? 0.24 : 0.14),
+                  color: 'warning.main',
+                }}
+              />
+            )}
+          </Stack>
+
+          {pendingRequests.length === 0 ? (
+            <Box
+              sx={{
+                textAlign: 'center', py: 5, borderRadius: 3,
+                border: '1px dashed', borderColor: 'divider',
+                color: 'text.secondary',
+              }}
+            >
+              <InboxIcon sx={{ fontSize: 36, mb: 1, opacity: 0.5 }} />
+              <Typography variant="body2">Không có đơn nào đang chờ duyệt.</Typography>
+            </Box>
+          ) : (
+            <Stack spacing={2}>
+              {pendingRequests.map((r) => {
+                const meta = REQUEST_TYPE_META[r.request_type];
+                const TypeIcon = meta.icon;
+                const initials = (r.requester?.full_name || '?').trim().charAt(0).toUpperCase();
+                return (
+                  <Box
+                    key={r.id}
+                    sx={{
+                      borderRadius: 3,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderLeft: '4px solid',
+                      borderLeftColor: meta.color,
+                      p: { xs: 1.75, sm: 2.25 },
+                      bgcolor: 'background.paper',
+                      transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
+                      '&:hover': { boxShadow: (t) => t.palette.mode === 'dark' ? '0 2px 10px rgba(0,0,0,0.35)' : '0 2px 10px rgba(15,23,42,0.06)' },
+                    }}
+                  >
+                    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ width: 38, height: 38, bgcolor: alpha(meta.color, 0.16), color: meta.color, fontWeight: 700, fontSize: '0.9rem' }}>
+                          {initials}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={700} lineHeight={1.3}>
+                            {r.requester?.full_name || 'Học sinh'}
+                          </Typography>
+                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary' }}>
+                            <ScheduleIcon sx={{ fontSize: 13 }} />
+                            <Typography variant="caption">{new Date(r.created_at).toLocaleString('vi-VN')}</Typography>
+                          </Stack>
+                        </Box>
+                      </Stack>
+                      <Chip
+                        size="small"
+                        icon={<TypeIcon sx={{ fontSize: '15px !important', color: `${meta.color} !important` }} />}
+                        label={REQUEST_TYPE_LABELS[r.request_type]}
+                        sx={{
+                          fontWeight: 600, height: 26, borderRadius: 1.5,
+                          bgcolor: alpha(meta.color, 0.12), color: meta.color,
+                        }}
+                      />
+                    </Stack>
+
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1.5 }}>{r.title}</Typography>
+
+                    {r.date_from && r.date_to && (
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        icon={<EventRangeIcon sx={{ fontSize: '14px !important' }} />}
+                        label={`${new Date(r.date_from).toLocaleDateString('vi-VN')} → ${new Date(r.date_to).toLocaleDateString('vi-VN')}`}
+                        sx={{ mt: 1, height: 24, fontSize: '0.72rem', borderRadius: 1.5 }}
+                      />
+                    )}
+
+                    <Box
+                      sx={{
+                        mt: 1.25, p: 1.5, borderRadius: 2,
+                        bgcolor: (t) => alpha(t.palette.text.primary, t.palette.mode === 'dark' ? 0.06 : 0.035),
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'text.primary' }}>{r.content}</Typography>
+                    </Box>
+                    <AttachmentList attachments={r.attachments} />
+
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }} alignItems={{ sm: 'center' }}>
+                      <TextField
+                        size="small" fullWidth label="Ghi chú duyệt (tuỳ chọn)"
+                        value={reviewNotes[r.id] || ''}
+                        onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                      />
+                      <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                        <Tooltip title="Duyệt đơn">
+                          <span>
+                            <Button
+                              variant="contained" color="success" size="small"
+                              startIcon={<CheckCircleIcon />}
+                              disabled={reviewingId === r.id}
+                              onClick={() => handleReviewRequest(r.id, 'approved')}
+                              sx={{ boxShadow: 'none' }}
+                            >
+                              Duyệt
+                            </Button>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Từ chối đơn">
+                          <span>
+                            <Button
+                              variant="outlined" color="error" size="small"
+                              startIcon={<CancelIcon />}
+                              disabled={reviewingId === r.id}
+                              onClick={() => handleReviewRequest(r.id, 'rejected')}
+                            >
+                              Từ chối
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                );
+              })}
+            </Stack>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardContent>
+          <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>Tổng hợp ký số</Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#F0FDF4', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight={700} color="success.main">
-                  {signatures.filter((s) => s.is_signed_by_student).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">Đã ký số</Typography>
-              </Box>
-            </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#FFFBEB', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight={700} color="warning.main">
-                  {signatures.filter((s) => s.is_signed_by_student && !s.is_signed_by_gvcn).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">Chờ duyệt</Typography>
-              </Box>
-            </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#EFF6FF', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight={700} color="primary.main">
-                  {signatures.filter((s) => s.is_signed_by_gvcn).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">Đã duyệt</Typography>
-              </Box>
-            </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
-              <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#FEF2F2', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight={700} color="error.main">
-                  {allProfiles.length - signatures.length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">Chưa nộp</Typography>
-              </Box>
-            </Grid>
+            {[
+              { label: 'Đã ký số', value: signatures.filter((s) => s.is_signed_by_student).length, color: 'success', icon: CheckCircleIcon },
+              { label: 'Chờ duyệt', value: signatures.filter((s) => s.is_signed_by_student && !s.is_signed_by_gvcn).length, color: 'warning', icon: PendingActionsIcon },
+              { label: 'Đã duyệt', value: signatures.filter((s) => s.is_signed_by_gvcn).length, color: 'primary', icon: HowToRegIcon },
+              { label: 'Chưa nộp', value: allProfiles.length - signatures.length, color: 'error', icon: PersonOffIcon },
+            ].map((stat) => (
+              <Grid key={stat.label} size={{ xs: 6, md: 3 }}>
+                <Stack
+                  direction="row" spacing={1.5} alignItems="center"
+                  sx={{
+                    p: 2, borderRadius: 3,
+                    bgcolor: (t) => alpha(t.palette[stat.color as 'success' | 'warning' | 'primary' | 'error'].main, t.palette.mode === 'dark' ? 0.16 : 0.1),
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 34, height: 34, borderRadius: 2, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      bgcolor: 'background.paper', color: `${stat.color}.main`,
+                    }}
+                  >
+                    <stat.icon fontSize="small" />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" fontWeight={700} color={`${stat.color}.main`} lineHeight={1.1}>
+                      {stat.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{stat.label}</Typography>
+                  </Box>
+                </Stack>
+              </Grid>
+            ))}
           </Grid>
 
-          <TableContainer>
+          <TableContainer className="mobile-card-table">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -286,37 +550,46 @@ export default function SignaturesPage() {
                     const sig = signatures.find((s) => s.student_id === p.id);
                     return (
                       <TableRow key={p.id} hover>
-                        <TableCell>{p.full_name}</TableCell>
-                        <TableCell>{p.student_code}</TableCell>
-                        <TableCell>
+                        <TableCell data-label="Học sinh">
+                          <Stack direction="row" spacing={1.25} alignItems="center">
+                            <Avatar sx={{ width: 28, height: 28, fontSize: '0.7rem', fontWeight: 700, bgcolor: 'primary.main' }}>
+                              {p.full_name.trim().charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Typography variant="body2" fontWeight={500}>{p.full_name}</Typography>
+                          </Stack>
+                        </TableCell>
+                        <TableCell data-label="Mã HS">{p.student_code}</TableCell>
+                        <TableCell data-label="Ký số">
                           {sig?.is_signed_by_student ? (
-                            <Chip size="small" label="Đã ký" color="success" sx={{ height: 22, fontSize: '0.7rem' }} />
+                            <Chip size="small" icon={<CheckCircleIcon sx={{ fontSize: '14px !important' }} />} label="Đã ký" color="success" sx={{ height: 24, fontSize: '0.7rem', borderRadius: 1.5 }} />
                           ) : (
-                            <Chip size="small" label="Chưa ký" color="default" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+                            <Chip size="small" label="Chưa ký" color="default" variant="outlined" sx={{ height: 24, fontSize: '0.7rem', borderRadius: 1.5 }} />
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell data-label="Duyệt GVCN">
                           {sig?.is_signed_by_gvcn ? (
-                            <Chip size="small" label="Đã duyệt" color="success" sx={{ height: 22, fontSize: '0.7rem' }} />
+                            <Chip size="small" icon={<CheckCircleIcon sx={{ fontSize: '14px !important' }} />} label="Đã duyệt" color="success" sx={{ height: 24, fontSize: '0.7rem', borderRadius: 1.5 }} />
                           ) : sig?.is_signed_by_student ? (
                             <Button size="small" variant="outlined" color="success" startIcon={<CheckCircleIcon />}
                               onClick={() => handleApprove(sig.id)}>
                               Duyệt
                             </Button>
                           ) : (
-                            <Chip size="small" label="-" color="default" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+                            <Chip size="small" label="-" color="default" variant="outlined" sx={{ height: 24, fontSize: '0.7rem', borderRadius: 1.5 }} />
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell data-label="Ngày ký">
                           <Typography variant="caption">
                             {sig?.signed_at ? new Date(sig.signed_at).toLocaleDateString('vi-VN') : '-'}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           {sig?.signed_pdf_url && (
-                            <IconButton size="small" onClick={() => window.open(sig.signed_pdf_url as string, '_blank')}>
-                              <DownloadIcon fontSize="small" />
-                            </IconButton>
+                            <Tooltip title="Xem bản đã ký">
+                              <IconButton size="small" onClick={() => window.open(sig.signed_pdf_url as string, '_blank')}>
+                                <DownloadIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           )}
                         </TableCell>
                       </TableRow>

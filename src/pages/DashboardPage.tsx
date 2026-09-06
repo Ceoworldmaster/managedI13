@@ -18,9 +18,11 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 import { isStudentRole } from '../lib/auth';
 import { supabase, type Profile, type PointLog, type AcademicWeek, type Team, type DormRoom } from '../lib/supabase';
 import StudentDetailDialog from '../components/StudentDetailDialog';
+import WeeklyTrendChart, { type WeeklyTrendPoint } from '../components/WeeklyTrendChart';
 
 interface StudentScore {
   profile: Profile;
@@ -32,11 +34,12 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [dormRooms, setDormRooms] = useState<DormRoom[]>([]);
-  const [, setWeeks] = useState<AcademicWeek[]>([]);
+  const [weeks, setWeeks] = useState<AcademicWeek[]>([]);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [currentWeek, setCurrentWeek] = useState<AcademicWeek | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [detailStudent, setDetailStudent] = useState<Profile | null>(null);
+  const [trend, setTrend] = useState<WeeklyTrendPoint[]>([]);
 
   const loadData = useCallback(async () => {
     const [studentsRes, teamsRes, dormRes, weeksRes] = await Promise.all([
@@ -70,6 +73,26 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadPointLogs(); }, [loadPointLogs]);
+
+  const loadTrend = useCallback(async () => {
+    if (weeks.length === 0 || students.length === 0) return;
+    const { data } = await supabase
+      .from('point_logs')
+      .select('week_id, points, type')
+      .in('week_id', weeks.map((w) => w.id));
+    const logs = (data as { week_id: number; points: number; type: 'cong' | 'tru' }[]) || [];
+    const recentWeeks = [...weeks].sort((a, b) => a.week_number - b.week_number).slice(-8);
+    const points: WeeklyTrendPoint[] = recentWeeks.map((w) => {
+      const weekLogs = logs.filter((l) => l.week_id === w.id);
+      const net = weekLogs.reduce((sum, l) => sum + (l.type === 'tru' ? -Math.abs(l.points) : l.points), 0);
+      const violations = weekLogs.filter((l) => l.type === 'tru').length;
+      const avgScore = students.length > 0 ? 100 + net / students.length : 100;
+      return { weekNumber: w.week_number, avgScore, violations };
+    });
+    setTrend(points);
+  }, [weeks, students]);
+
+  useEffect(() => { loadTrend(); }, [loadTrend]);
 
   const computeScores = (filterFn?: (p: Profile) => boolean): StudentScore[] => {
     const filtered = filterFn ? students.filter(filterFn) : students;
@@ -159,6 +182,22 @@ export default function DashboardPage() {
         ))}
       </Grid>
 
+      {/* Weekly Trend Chart */}
+      <Card>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+            <ShowChartIcon color="primary" />
+            <Typography variant="h6" fontWeight={600}>
+              Xu hướng theo tuần
+            </Typography>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+            Điểm trung bình lớp và số lượt vi phạm trong 8 tuần gần nhất
+          </Typography>
+          <WeeklyTrendChart data={trend} />
+        </CardContent>
+      </Card>
+
       {/* Competition Table */}
       <Card>
         <CardContent sx={{ p: 0 }}>
@@ -174,7 +213,7 @@ export default function DashboardPage() {
               Nhấp vào một học sinh để xem chi tiết lỗi &amp; điểm cộng
             </Typography>
           </Box>
-          <TableContainer>
+          <TableContainer className="mobile-card-table">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -200,7 +239,7 @@ export default function DashboardPage() {
                       onClick={() => setDetailStudent(s.profile)}
                       sx={{ cursor: 'pointer' }}
                     >
-                      <TableCell>
+                      <TableCell data-label="Hạng">
                         <Chip
                           size="small"
                           label={i + 1}
@@ -209,17 +248,17 @@ export default function DashboardPage() {
                           sx={{ minWidth: 28 }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Học sinh">
                         <Typography variant="body2" fontWeight={500}>
                           {s.profile.full_name}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Mã HS">
                         <Typography variant="body2" color="text.secondary">
                           {s.profile.student_code}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Điểm thi đua">
                         <Chip
                           size="small"
                           label={s.totalPoints}
@@ -227,7 +266,7 @@ export default function DashboardPage() {
                           sx={{ fontWeight: 700, minWidth: 48 }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="Lượt vi phạm">
                         <Typography variant="body2" color={s.deductionCount > 0 ? 'error.main' : 'text.secondary'}>
                           {s.deductionCount}
                         </Typography>
@@ -250,7 +289,7 @@ export default function DashboardPage() {
               Học sinh cần hỗ trợ
             </Typography>
           </Stack>
-          <TableContainer>
+          <TableContainer className="mobile-card-table">
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'background.default' }}>
@@ -274,11 +313,11 @@ export default function DashboardPage() {
                       onClick={() => setDetailStudent(s.profile)}
                       sx={{ cursor: 'pointer' }}
                     >
-                      <TableCell>{s.profile.full_name}</TableCell>
-                      <TableCell>
+                      <TableCell data-label="Học sinh">{s.profile.full_name}</TableCell>
+                      <TableCell data-label="Điểm">
                         <Chip size="small" label={s.totalPoints} color="error" sx={{ fontWeight: 700, minWidth: 40 }} />
                       </TableCell>
-                      <TableCell>{s.deductionCount}</TableCell>
+                      <TableCell data-label="Vi phạm">{s.deductionCount}</TableCell>
                     </TableRow>
                   ))
                 )}
